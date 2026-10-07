@@ -1,0 +1,205 @@
+/* Tema espacial por cima do Bootstrap (modo escuro) */
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+    radial-gradient(1px 1px at 120px 80px, #cde, transparent),
+    radial-gradient(2px 2px at 200px 150px, #fff, transparent),
+    radial-gradient(1px 1px at 280px 40px, #bcd, transparent),
+    radial-gradient(ellipse at top, #1a1f4d 0%, #0b0d24 55%, #05060f 100%);
+  background-size: 300px 200px, 300px 200px, 300px 200px, 300px 200px, 100% 100%;
+  background-attachment: fixed;
+}
+
+.navbar {
+  background-color: rgba(11, 13, 36, 0.9) !important;
+  backdrop-filter: blur(6px);
+}
+
+.card {
+  background-color: rgba(20, 24, 60, 0.75);
+  border-color: rgba(120, 140, 255, 0.2);
+}
+
+/* Cristais: ícone ao lado do número */
+.crystal {
+  white-space: nowrap;
+}
+
+.crystal .bi {
+  color: #5fe3ff;
+}
+
+.badge .crystal .bi {
+  color: inherit;
+}
+
+/* ---------- Planetas desenhados em CSS ---------- */
+.orb-wrap {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.orb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.orb-dim {
+  filter: grayscale(0.85) brightness(0.65);
+}
+
+/* Anel (Saturnália): metade de trás fica atrás do planeta, metade da frente fica na frente */
+.orb-ring {
+  position: absolute;
+  left: -32%;
+  right: -32%;
+  top: 33%;
+  bottom: 33%;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: rgba(240, 210, 150, 0.85);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+
+.orb-ring-back {
+  z-index: 0;
+}
+
+.orb-ring-front {
+  z-index: 2;
+  clip-path: inset(50% -5% -5% -5%);
+}
+
+/* Botão do planeta principal */
+.orb-button {
+  position: relative;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  animation: orb-float 6s ease-in-out infinite;
+}
+
+.orb-button:hover .orb {
+  filter: brightness(1.12);
+}
+
+.orb-button:active {
+  transform: scale(0.94);
+}
+
+.orb-button:focus-visible {
+  outline: 2px solid #5fe3ff;
+  outline-offset: 8px;
+}
+
+@keyframes orb-float {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* "+N" flutuante ao clicar */
+.floater {
+  position: absolute;
+  z-index: 5;
+  color: #7df9ff;
+  font-weight: 700;
+  font-size: 1.4rem;
+  pointer-events: none;
+  text-shadow: 0 0 6px #000;
+  animation: float-up 0.9s ease-out forwards;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes float-up {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -140px);
+  }
+}
+
+/* Seletor de planetas */
+.planet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 2rem;
+  padding: 0.3rem 0.9rem 0.3rem 0.4rem;
+  border: 1px solid rgba(120, 140, 255, 0.25);
+  background: rgba(20, 24, 60, 0.6);
+  color: var(--bs-body-color);
+}
+
+.planet-chip:hover {
+  border-color: #5fe3ff;
+  color: var(--bs-body-color);
+}
+
+.planet-chip.active {
+  border-color: #5fe3ff;
+  background: rgba(95, 227, 255, 0.15);
+  font-weight: 600;
+}
+
+a.planet-chip {
+  padding-left: 0.9rem;
+}
+
+/* Cards da loja */
+.upgrade-icon {
+  font-size: 2rem;
+  line-height: 1;
+  color: #8fa0ff;
+}
+
+.upgrade-card {
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.upgrade-card.affordable {
+  border-color: #198754;
+}
+
+.upgrade-card.affordable:hover {
+  transform: translateY(-2px);
+}
+
+.emblem-btn {
+  font-size: 1.3rem;
+  line-height: 1;
+  width: 3rem;
+  height: 3rem;
+}
+
+/* Galáxia */
+.planet-card.locked {
+  opacity: 0.85;
+}
+
+/* Modo desenvolvedor */
+.dev-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.dev-panel .card {
+  width: min(320px, calc(100vw - 2rem));
+  max-height: 70vh;
+  overflow-y: auto;
+}
