@@ -70,10 +70,7 @@ src/
   CRUD (create, read, update, delete). Na Sprint 3, basta trocar o corpo delas por `fetch()` para uma API REST.
 - **Loop com tempo real:** o tick usa a diferença entre horários, então o jogo não "atrasa" com a aba em segundo plano.
 
-## Próximos passos (Sprint 3)
-
-- Trocar o localStorage por uma API RESTful (CRUD de jogadores) e tornar o ranking global.
 
 ## Autor
 
-Gabriel
+Gabriel SCatolino
