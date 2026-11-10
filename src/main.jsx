@@ -6,6 +6,7 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import './index.css'
 import App from './App'
+import { ErrorProvider } from './context/ErrorContext'
 import { GameProvider } from './context/GameContext'
 
 document.documentElement.setAttribute('data-bs-theme', 'dark')
@@ -13,9 +14,11 @@ document.documentElement.setAttribute('data-bs-theme', 'dark')
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <GameProvider>
-        <App />
-      </GameProvider>
+      <ErrorProvider>
+        <GameProvider>
+          <App />
+        </GameProvider>
+      </ErrorProvider>
     </BrowserRouter>
   </StrictMode>,
 )

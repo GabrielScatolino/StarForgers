@@ -12,10 +12,12 @@ import {
   prestigeGain,
 } from '../utils/gameLogic'
 import { getPlayer, updatePlayer } from '../services/playerService'
+import { useError } from './ErrorContext'
 
 const CURRENT_PLAYER_KEY = 'colonia-espacial:currentPlayer'
 const TICK_MS = 100
 const AUTOSAVE_MS = 5000
+const SAVE_ERROR = 'Não foi possível salvar o seu progresso no servidor. Vamos tentar de novo automaticamente.'
 
 // Reducer: toda mudança no estado do jogo passa por aqui (previsível e fácil de explicar)
 function gameReducer(state, action) {
@@ -95,61 +97,101 @@ export function GameProvider({ children }) {
   const [game, dispatch] = useReducer(gameReducer, null)
   const [player, setPlayer] = useState(null) // { id, name, emblem }
   const [currentId, setCurrentId] = useState(() => localStorage.getItem(CURRENT_PLAYER_KEY))
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem(CURRENT_PLAYER_KEY)))
   const [offlineReport, setOfflineReport] = useState(null)
+  const [loadError, setLoadError] = useState(null) // falha ao abrir o piloto (ex.: API fora do ar)
+  const [loadAttempt, setLoadAttempt] = useState(0) // muda para forçar uma nova tentativa de carregar
+  const { showError, clearError } = useError()
+
+  // "Carregando" é derivado: há um piloto escolhido, mas ele ainda não terminou de abrir.
+  // Calculado direto (e não em um useEffect) para que, no mesmo instante em que o usuário
+  // clica em "Jogar", as páginas já saibam que devem esperar em vez de redirecionar para o início.
+  const loading = Boolean(currentId) && player?.id !== currentId && !loadError
 
   const gameRef = useRef(null)
   const loadedIdRef = useRef(null)
+  const savingRef = useRef(false)
+  const pendingSaveRef = useRef(false)
+  const saveFailedRef = useRef(false)
 
   useEffect(() => {
     gameRef.current = game
   }, [game])
 
-  // Salva o jogo atual no "banco" (localStorage hoje, API na Sprint 3)
-  const save = useCallback(() => {
-    const id = loadedIdRef.current
-    const current = gameRef.current
-    if (!id || !current) return
-    updatePlayer(id, { game: { ...current, lastSaved: Date.now() } })
-  }, [])
+  // Envia o jogo atual para a API. Só um envio por vez: se chegar outro pedido durante um
+  // envio, ele fica pendente e roda logo depois (assim nenhuma alteração fica para trás).
+  const save = useCallback(
+    async function saveGame({ keepalive = false } = {}) {
+      const id = loadedIdRef.current
+      const current = gameRef.current
+      if (!id || !current) return
+      if (savingRef.current) {
+        pendingSaveRef.current = true
+        return
+      }
+
+      savingRef.current = true
+      try {
+        await updatePlayer(id, { game: { ...current, lastSaved: Date.now() } }, { keepalive })
+        if (saveFailedRef.current) {
+          saveFailedRef.current = false
+          clearError(SAVE_ERROR)
+        }
+      } catch {
+        saveFailedRef.current = true
+        showError(SAVE_ERROR)
+      } finally {
+        savingRef.current = false
+        if (pendingSaveRef.current) {
+          pendingSaveRef.current = false
+          saveGame({ keepalive })
+        }
+      }
+    },
+    [showError, clearError],
+  )
 
   // Carrega o jogador selecionado, migra saves antigos e aplica o ganho offline
   useEffect(() => {
     let cancelled = false
     loadedIdRef.current = null
+    setLoadError(null)
 
     if (!currentId) {
       setPlayer(null)
       dispatch({ type: 'LOAD', game: null })
-      setLoading(false)
       return
     }
 
-    setLoading(true)
-    getPlayer(currentId).then((found) => {
-      if (cancelled) return
-      if (!found) {
-        localStorage.removeItem(CURRENT_PLAYER_KEY)
-        setCurrentId(null)
-        return
-      }
-      let loaded = migrateGameState(found.game)
-      const elapsed = Math.min((Date.now() - loaded.lastSaved) / 1000, OFFLINE_CAP_SECONDS)
-      const gain = cps(loaded) * elapsed
-      if (elapsed > 30 && gain > 0) {
-        loaded = earn(loaded, gain)
-        setOfflineReport({ seconds: elapsed, gain })
-      }
-      loadedIdRef.current = found.id
-      setPlayer({ id: found.id, name: found.name, emblem: found.emblem })
-      dispatch({ type: 'LOAD', game: loaded })
-      setLoading(false)
-    })
+    getPlayer(currentId)
+      .then((found) => {
+        if (cancelled) return
+        if (!found) {
+          // O piloto foi removido do servidor: esquece a seleção
+          localStorage.removeItem(CURRENT_PLAYER_KEY)
+          setCurrentId(null)
+          return
+        }
+        let loaded = migrateGameState(found.game)
+        const elapsed = Math.min((Date.now() - loaded.lastSaved) / 1000, OFFLINE_CAP_SECONDS)
+        const gain = cps(loaded) * elapsed
+        if (elapsed > 30 && gain > 0) {
+          loaded = earn(loaded, gain)
+          setOfflineReport({ seconds: elapsed, gain })
+        }
+        loadedIdRef.current = found.id
+        saveFailedRef.current = false
+        setPlayer({ id: found.id, name: found.name, emblem: found.emblem })
+        dispatch({ type: 'LOAD', game: loaded })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setLoadError(err.message)
+      })
 
     return () => {
       cancelled = true
     }
-  }, [currentId])
+  }, [currentId, loadAttempt])
 
   // Loop do jogo: usa o tempo real decorrido, então funciona mesmo com a aba em segundo plano
   useEffect(() => {
@@ -163,22 +205,23 @@ export function GameProvider({ children }) {
     return () => clearInterval(timer)
   }, [player])
 
-  // Autosave periódico + ao fechar/esconder a aba
+  // Autosave periódico + ao fechar/esconder a aba (keepalive deixa o envio terminar mesmo fechando)
   useEffect(() => {
     if (!player) return
-    const timer = setInterval(save, AUTOSAVE_MS)
-    const onHide = () => document.visibilityState === 'hidden' && save()
-    window.addEventListener('beforeunload', save)
+    const timer = setInterval(() => save(), AUTOSAVE_MS)
+    const onUnload = () => save({ keepalive: true })
+    const onHide = () => document.visibilityState === 'hidden' && save({ keepalive: true })
+    window.addEventListener('beforeunload', onUnload)
     document.addEventListener('visibilitychange', onHide)
     return () => {
       clearInterval(timer)
-      window.removeEventListener('beforeunload', save)
+      window.removeEventListener('beforeunload', onUnload)
       document.removeEventListener('visibilitychange', onHide)
       save()
     }
   }, [player, save])
 
-  // Salva imediatamente após compras, colonização e prestígio
+  // Salva logo após compras, colonização e prestígio (sem esperar os 5 s)
   useEffect(() => {
     if (game) save()
   }, [game?.clickUpgrades, game?.generators, game?.planets, game?.universes, save]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -192,22 +235,30 @@ export function GameProvider({ children }) {
     [save],
   )
 
-  const logout = useCallback(() => {
-    save()
-    localStorage.removeItem(CURRENT_PLAYER_KEY)
-    setCurrentId(null)
-  }, [save])
+  // saveFirst: false é usado ao excluir o piloto atual (não faz sentido salvar quem acabou de ser apagado)
+  const logout = useCallback(
+    ({ saveFirst = true } = {}) => {
+      if (saveFirst) save()
+      loadedIdRef.current = null
+      localStorage.removeItem(CURRENT_PLAYER_KEY)
+      setCurrentId(null)
+    },
+    [save],
+  )
 
   const value = useMemo(
     () => ({
       player,
       game,
       loading,
+      loadError,
+      reload: () => setLoadAttempt((n) => n + 1),
       offlineReport,
       clearOfflineReport: () => setOfflineReport(null),
       totalCps: game ? cps(game) : 0,
       login,
       logout,
+      syncProfile: (changes) => setPlayer((current) => (current ? { ...current, ...changes } : current)),
       click: () => dispatch({ type: 'CLICK' }),
       selectPlanet: (id) => dispatch({ type: 'SELECT_PLANET', id }),
       colonize: (id) => dispatch({ type: 'COLONIZE', id }),
@@ -216,7 +267,7 @@ export function GameProvider({ children }) {
       prestige: () => dispatch({ type: 'PRESTIGE' }),
       dev: (command, ...args) => dispatch({ type: 'DEV', command, args }),
     }),
-    [player, game, loading, offlineReport, login, logout],
+    [player, game, loading, loadError, offlineReport, login, logout],
   )
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>

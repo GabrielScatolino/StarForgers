@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import DevPanel from './components/DevPanel'
+import ErrorBanner from './components/ErrorBanner'
 import NavBar from './components/NavBar'
 import RequirePlayer from './components/RequirePlayer'
 import Galaxy from './pages/Galaxy'
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <>
       <NavBar />
+      <ErrorBanner />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />

@@ -1,60 +1,40 @@
-// Camada de dados dos jogadores.
-//
-// Todas as funções são ASSÍNCRONAS (retornam Promise) de propósito: hoje os dados
-// ficam no localStorage, mas na Sprint 3 basta trocar o corpo de cada função por
-// um fetch() para a API REST, sem mexer nas páginas nem nos componentes.
+// Camada de dados dos jogadores, agora falando com a API REST (antes era o localStorage).
+// As assinaturas das funções são as mesmas de antes, então as páginas quase não mudaram.
 //
 //   Create -> createPlayer      (POST   /players)
 //   Read   -> getPlayers/getPlayer (GET /players, /players/:id)
-//   Update -> updatePlayer      (PUT    /players/:id)
+//   Update -> updatePlayer      (PATCH  /players/:id)
 //   Delete -> deletePlayer      (DELETE /players/:id)
 
 import { createInitialGameState } from '../utils/gameLogic'
+import { ApiError, request } from './apiClient'
 
-const STORAGE_KEY = 'colonia-espacial:players'
-
-function readAll() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
+// Lista os pilotos. Para o ranking global: { sort: 'lifetimeEarned', order: 'desc' }
+export async function getPlayers({ sort = 'createdAt', order = 'asc', limit = 100 } = {}) {
+  const query = new URLSearchParams({ sort, order, limit: String(limit) })
+  const { data } = await request(`/players?${query}`)
+  return data
 }
 
-function writeAll(players) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(players))
-}
-
-export async function getPlayers() {
-  return readAll()
-}
-
+// Devolve o piloto, ou null se ele não existe mais (as demais falhas são lançadas)
 export async function getPlayer(id) {
-  return readAll().find((p) => p.id === id) ?? null
-}
-
-export async function createPlayer({ name, emblem }) {
-  const player = {
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    emblem,
-    createdAt: Date.now(),
-    game: createInitialGameState(),
+  try {
+    return await request(`/players/${id}`)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null
+    throw err
   }
-  writeAll([...readAll(), player])
-  return player
 }
 
-export async function updatePlayer(id, changes) {
-  const players = readAll()
-  const index = players.findIndex((p) => p.id === id)
-  if (index === -1) return null
-  players[index] = { ...players[index], ...changes }
-  writeAll(players)
-  return players[index]
+export function createPlayer({ name, emblem }) {
+  return request('/players', { method: 'POST', body: { name, emblem, game: createInitialGameState() } })
+}
+
+// Envia só o que mudou (ex.: { game } no autosave, ou { name, emblem } na edição)
+export function updatePlayer(id, changes, { keepalive = false } = {}) {
+  return request(`/players/${id}`, { method: 'PATCH', body: changes, keepalive })
 }
 
 export async function deletePlayer(id) {
-  writeAll(readAll().filter((p) => p.id !== id))
+  await request(`/players/${id}`, { method: 'DELETE' })
 }

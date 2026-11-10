@@ -18,7 +18,7 @@ export default function NavBar() {
     <nav className="navbar navbar-expand-md border-bottom border-secondary-subtle sticky-top bg-body">
       <div className="container">
         <NavLink to="/" className="navbar-brand fw-bold">
-          <Icon name="rocket-takeoff" className="text-info" /> StarForgers
+          <Icon name="rocket-takeoff" className="text-info" /> Colônia Espacial
         </NavLink>
         <button
           className="navbar-toggler"
